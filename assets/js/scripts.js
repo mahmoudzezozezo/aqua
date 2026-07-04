@@ -1,10 +1,9 @@
 const csvUrl =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vQe94jYbetR9dIujTmievlAez-y5YhG5fSvNnjyRLCIGMwYi-f21wpADcMMkD1g6w2nXWMKJSol-JIc/pub?output=csv";
+  "https://docs.google.com/spreadsheets/d/e/YOUR_WATER_READINGS_SHEET_ID/pub?output=csv";
 
 const billCsvUrl =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSB7bTJmKXWgsACWjB7kuKxWHT5KK60AnmpUhHHTGVaVltbX8jj2deC0SH4EslaFDs_3_sZfFiq7258/pub?output=csv";
+  "https://docs.google.com/spreadsheets/d/e/YOUR_WATER_BILLS_SHEET_ID/pub?output=csv";
 
-// Normalize a parsed row's keys to lowercase trimmed strings
 function normalizeRow(row) {
   const normalized = {};
   for (const key of Object.keys(row)) {
@@ -17,45 +16,80 @@ function isCurlRequest() {
   return !navigator.userAgent || navigator.userAgent.includes("curl");
 }
 
-// ─── Official ERA tariff effective 1 Sep 2024 ───────────────────────────────
-function calculateCostBreakdown(kWh) {
-  if (kWh <= 0) return { consumptionCost: 0, serviceFee: 0, total: 0, tierLabel: "--" };
-  const consumptionCost = kWh * 2.74;
-  const serviceFee = 0;
-  const tierLabel = "Flat rate (2.74 EGP/kWh)";
-  return { consumptionCost, serviceFee, total: consumptionCost, tierLabel };
+function calculateTieredWaterCost(m3) {
+  if (m3 <= 0) return 0;
+  let cost = 0;
+  let remaining = m3;
+
+  const tier1 = Math.min(remaining, 10);
+  cost += tier1 * 2.00;
+  remaining -= tier1;
+
+  if (remaining > 0) {
+    const tier2 = Math.min(remaining, 10);
+    cost += tier2 * 3.00;
+    remaining -= tier2;
+  }
+
+  if (remaining > 0) {
+    const tier3 = Math.min(remaining, 10);
+    cost += tier3 * 4.00;
+    remaining -= tier3;
+  }
+
+  if (remaining > 0) {
+    cost += remaining * 4.50;
+  }
+
+  return cost;
 }
 
-function calculateCost(kWh) {
-  return calculateCostBreakdown(kWh).total;
+function calculateCostBreakdown(m3) {
+  if (m3 <= 0) {
+    return {
+      consumptionCost: 0,
+      wastewaterCost: 0,
+      serviceFee: 0,
+      vat: 0,
+      total: 0,
+      tierLabel: "--"
+    };
+  }
+
+  const waterCost = calculateTieredWaterCost(m3);
+  const wastewaterCost = waterCost * 0.80;
+  const regulatoryFee = 0.35;
+  const sustainabilityFee = 15.00;
+  const serviceFee = regulatoryFee + sustainabilityFee;
+  const vat = 2.10;
+  const total = waterCost + wastewaterCost + serviceFee + vat;
+
+  return { consumptionCost: waterCost, wastewaterCost, serviceFee, vat, total, tierLabel: "" };
 }
 
-function getCategoryAr(kWh) {
-  if (kWh <= 50)   return "الشريحة الأولى";
-  if (kWh <= 100)  return "الشريحة الثانية";
-  if (kWh <= 200)  return "الشريحة الثالثة";
-  if (kWh <= 350)  return "الشريحة الرابعة";
-  if (kWh <= 650)  return "الشريحة الخامسة";
-  if (kWh <= 1000) return "الشريحة السادسة";
-  return "الشريحة السابعة";
+function calculateCost(m3) {
+  return calculateCostBreakdown(m3).total;
 }
 
-function getCategoryEn(kWh) {
-  if (kWh <= 50)   return "Tier 1";
-  if (kWh <= 100)  return "Tier 2";
-  if (kWh <= 200)  return "Tier 3";
-  if (kWh <= 350)  return "Tier 4";
-  if (kWh <= 650)  return "Tier 5";
-  if (kWh <= 1000) return "Tier 6";
-  return "Tier 7";
+function getCategoryAr(m3) {
+  if (m3 <= 10) return "الشريحة الأولى";
+  if (m3 <= 20) return "الشريحة الثانية";
+  if (m3 <= 30) return "الشريحة الثالثة";
+  return "الشريحة الرابعة";
+}
+
+function getCategoryEn(m3) {
+  if (m3 <= 10) return "Tier 1";
+  if (m3 <= 20) return "Tier 2";
+  if (m3 <= 30) return "Tier 3";
+  return "Tier 4";
 }
 
 function logAr(line) { document.getElementById("terminal-ar").textContent += "\n" + line; }
 function logEn(line) { document.getElementById("terminal-en").textContent += "\n" + line; }
 
-// Render average per day table in Arabic
 function displayAveragePerDayAr(data) {
-  let tableHtml = "<table><thead><tr><th>#</th><th>التاريخ والوقت</th><th>القراءة</th><th>الفارق الزمني (ساعات)</th><th>المعدل اليومي (كيلوواط/ساعة)</th><th>التكلفة المقدرة</th></tr></thead><tbody>";
+  let tableHtml = "<table><thead><tr><th>#</th><th>التاريخ والوقت</th><th>القراءة</th><th>الفارق الزمني (ساعات)</th><th>المعدل اليومي (م³)</th><th>التكلفة المقدرة</th></tr></thead><tbody>";
   const startIndex = Math.max(0, data.length - 21);
   for (let i = startIndex; i < data.length - 1; i++) {
     const row = data[i];
@@ -63,9 +97,9 @@ function displayAveragePerDayAr(data) {
     if (nextRow) {
       const hoursDiff = (nextRow.timestamp - row.timestamp) / (1000 * 60 * 60);
       const daysDiff = hoursDiff / 24;
-      const kWhUsage = nextRow.reading - row.reading;
-      const avgPerDay = kWhUsage / daysDiff;
-      const bd = calculateCostBreakdown(kWhUsage);
+      const m3Usage = nextRow.reading - row.reading;
+      const avgPerDay = m3Usage / daysDiff;
+      const bd = calculateCostBreakdown(m3Usage);
       tableHtml += `<tr>
         <td>${i + 1}</td>
         <td>${row.timestamp.toLocaleString("ar-EG")}</td>
@@ -80,9 +114,8 @@ function displayAveragePerDayAr(data) {
   document.getElementById("terminal-ar").innerHTML += tableHtml;
 }
 
-// Render average per day table in English
 function displayAveragePerDayEn(data) {
-  let tableHtml = "<table><thead><tr><th>#</th><th>Date & Time</th><th>Reading</th><th>Time Diff (hrs)</th><th>Avg/Day (kWh)</th><th>Est. Bill</th></tr></thead><tbody>";
+  let tableHtml = "<table><thead><tr><th>#</th><th>Date & Time</th><th>Reading</th><th>Time Diff (hrs)</th><th>Avg/Day (m³)</th><th>Est. Bill</th></tr></thead><tbody>";
   const startIndex = Math.max(0, data.length - 21);
   for (let i = startIndex; i < data.length - 1; i++) {
     const row = data[i];
@@ -90,9 +123,9 @@ function displayAveragePerDayEn(data) {
     if (nextRow) {
       const hoursDiff = (nextRow.timestamp - row.timestamp) / (1000 * 60 * 60);
       const daysDiff = hoursDiff / 24;
-      const kWhUsage = nextRow.reading - row.reading;
-      const avgPerDay = kWhUsage / daysDiff;
-      const bd = calculateCostBreakdown(kWhUsage);
+      const m3Usage = nextRow.reading - row.reading;
+      const avgPerDay = m3Usage / daysDiff;
+      const bd = calculateCostBreakdown(m3Usage);
       tableHtml += `<tr>
         <td>${i + 1}</td>
         <td>${row.timestamp.toLocaleString("en-US")}</td>
@@ -107,30 +140,20 @@ function displayAveragePerDayEn(data) {
   document.getElementById("terminal-en").innerHTML += tableHtml;
 }
 
-// ─── Parse Arabic locale date strings from Google Sheets ────────────────────
-// Handles formats like:
-//   "12:55:38 م 2026/05/27"   (Arabic PM = م, AM = ص)
-//   "12:55:38 AM 2026/05/27"  (Latin AM/PM fallback)
-//   "2026/05/27 12:55:38"     (no AM/PM, 24h)
-// ─────────────────────────────────────────────────────────────────────────────
 function parseArabicDate(str) {
   if (!str) return null;
   str = str.trim();
 
-  // Detect Arabic PM (م) / AM (ص)
-  const isArabicPM = str.includes("\u0645"); // م
-  const isArabicAM = str.includes("\u0635"); // ص
+  const isArabicPM = str.includes("\u0645");
+  const isArabicAM = str.includes("\u0635");
   const hasArabicAmPm = isArabicPM || isArabicAM;
 
-  // Strip Arabic AM/PM characters
   str = str.replace(/[\u0635\u0645]/g, "").trim();
 
-  // Also handle Latin AM/PM
   const isLatinPM = /pm/i.test(str);
   const isLatinAM = /am/i.test(str);
   str = str.replace(/[aApP][mM]/g, "").trim();
 
-  // Now extract digits: expect time HH:MM:SS and date YYYY/MM/DD (in any order)
   const timeMatch = str.match(/(\d{1,2}):(\d{2}):(\d{2})/);
   const dateMatch = str.match(/(\d{4})\/(\d{2})\/(\d{2})/);
 
@@ -140,10 +163,9 @@ function parseArabicDate(str) {
   const mm = parseInt(timeMatch[2]);
   const ss = parseInt(timeMatch[3]);
   const yyyy = parseInt(dateMatch[1]);
-  const mo = parseInt(dateMatch[2]) - 1; // 0-indexed
+  const mo = parseInt(dateMatch[2]) - 1;
   const dd = parseInt(dateMatch[3]);
 
-  // Apply AM/PM conversion
   if (hasArabicAmPm || isLatinAM || isLatinPM) {
     if ((isArabicPM || isLatinPM) && hh !== 12) hh += 12;
     if ((isArabicAM || isLatinAM) && hh === 12) hh = 0;
@@ -153,7 +175,7 @@ function parseArabicDate(str) {
   return isNaN(d.getTime()) ? null : d;
 }
 
-function parseElecData(csvText) {
+function parseWaterData(csvText) {
   const parsed = Papa.parse(csvText, { header: true });
   return parsed.data
     .map(normalizeRow)
@@ -179,8 +201,8 @@ function parseBillData(csvText) {
     .filter((row) => !isNaN(row.date.getTime()) && !isNaN(row.cost));
 }
 
-function processElecData(csvText) {
-  const data = parseElecData(csvText);
+function processWaterData(csvText) {
+  const data = parseWaterData(csvText);
   const now = new Date();
   const last30DaysData = data.filter((row) => row.timestamp >= new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000));
   if (last30DaysData.length < 2) return { data, error: true };
@@ -195,24 +217,26 @@ function processElecData(csvText) {
 }
 
 function loadArabicData() {
-  document.getElementById("terminal-ar").innerHTML = "> جاري تحميل بيانات استهلاك الكهرباء...";
+  document.getElementById("terminal-ar").innerHTML = "> جاري تحميل بيانات استهلاك المياه...";
   fetch(csvUrl)
     .then((r) => r.text())
     .then((csvText) => {
-      const result = processElecData(csvText);
+      const result = processWaterData(csvText);
       if (result.error) { logAr("> ❌ لا توجد بيانات كافية أو بيانات غير صالحة."); hideLoading(); return; }
       const { data, first, last, totalUsage, avgPerDay, breakdown } = result;
       const category = getCategoryAr(totalUsage);
       updateSummaryCards({ totalUsage, avgPerDay, cost: breakdown.total, tier: category, breakdown });
-      logAr("> ملخص استهلاك الكهرباء للشهر الماضي");
+      logAr("> ملخص استهلاك المياه للشهر الماضي");
       logAr("----------------------------------------");
       logAr(`📅 أول قراءة: ${first.timestamp.toLocaleDateString("ar-EG")}`);
       logAr(`📅 آخر قراءة:  ${last.timestamp.toLocaleDateString("ar-EG")}`);
-      logAr(`⚡ إجمالي الاستهلاك: ${totalUsage} كيلوواط/ساعة`);
-      logAr(`📊 المتوسط اليومي: ${avgPerDay.toFixed(2)} كيلوواط/يوم`);
-      logAr(`💡 تكلفة الاستهلاك: ${breakdown.consumptionCost.toFixed(2)} جنيه`);
+      logAr(`💧 إجمالي الاستهلاك: ${totalUsage} متر مكعب`);
+      logAr(`📊 المتوسط اليومي: ${avgPerDay.toFixed(2)} م³/يوم`);
+      logAr(`🚰 تكلفة المياه: ${breakdown.consumptionCost.toFixed(2)} جنيه`);
+      logAr(`🧹 الصرف الصحي: ${breakdown.wastewaterCost.toFixed(2)} جنيه`);
       logAr(`🔧 رسوم الخدمة: ${breakdown.serviceFee.toFixed(2)} جنيه`);
-      logAr(`💰 إجمالي الفاتورة المقدرة: ${breakdown.total.toFixed(2)} جنيه`);
+      logAr(`💰 ضريبة القيمة المضافة: ${breakdown.vat.toFixed(2)} جنيه`);
+      logAr(`💵 إجمالي الفاتورة المقدرة: ${breakdown.total.toFixed(2)} جنيه`);
       logAr(`📈 الشريحة: ${category}`);
       currentData = data;
       displayAveragePerDayAr(data);
@@ -225,24 +249,26 @@ function loadArabicData() {
 function loadEnglishData() {
   const terminalEn = document.getElementById("terminal-en");
   if (!terminalEn) { hideLoading(); return; }
-  terminalEn.innerHTML = "> Loading electricity usage data...";
+  terminalEn.innerHTML = "> Loading water usage data...";
   fetch(csvUrl)
     .then((r) => r.text())
     .then((csvText) => {
-      const result = processElecData(csvText);
+      const result = processWaterData(csvText);
       if (result.error) { logEn("> ❌ Not enough data or invalid data."); hideLoading(); return; }
       const { data, first, last, totalUsage, avgPerDay, breakdown } = result;
       const category = getCategoryEn(totalUsage);
       updateSummaryCards({ totalUsage, avgPerDay, cost: breakdown.total, tier: category, breakdown });
-      logEn("> Electricity Usage Summary for Last Month");
+      logEn("> Water Usage Summary for Last Month");
       logEn("----------------------------------------");
       logEn(`📅 First Reading: ${first.timestamp.toLocaleDateString("en-US")}`);
       logEn(`📅 Last Reading:  ${last.timestamp.toLocaleDateString("en-US")}`);
-      logEn(`⚡ Total Usage: ${totalUsage} kWh`);
-      logEn(`📊 Average per day: ${avgPerDay.toFixed(2)} kWh/day`);
-      logEn(`💡 Consumption cost: ${breakdown.consumptionCost.toFixed(2)} EGP`);
-      logEn(`🔧 Service fee: ${breakdown.serviceFee.toFixed(2)} EGP`);
-      logEn(`💰 Estimated total bill: ${breakdown.total.toFixed(2)} EGP`);
+      logEn(`💧 Total Usage: ${totalUsage} m³`);
+      logEn(`📊 Average per day: ${avgPerDay.toFixed(2)} m³/day`);
+      logEn(`🚰 Water cost: ${breakdown.consumptionCost.toFixed(2)} EGP`);
+      logEn(`🧹 Wastewater: ${breakdown.wastewaterCost.toFixed(2)} EGP`);
+      logEn(`🔧 Service fees: ${breakdown.serviceFee.toFixed(2)} EGP`);
+      logEn(`💰 VAT: ${breakdown.vat.toFixed(2)} EGP`);
+      logEn(`💵 Estimated total bill: ${breakdown.total.toFixed(2)} EGP`);
       logEn(`📈 Billing tier: ${category}`);
       currentData = data;
       displayAveragePerDayEn(data);
@@ -303,9 +329,9 @@ function displayRollingCostChartEn(data, monthsPeriod = 12) {
             {
               label: "Actual Bill",
               data: filteredMonths.map((m) => billingByMonth[m] || null),
-              borderColor: "#3b82f6", backgroundColor: "rgba(59,130,246,0.1)",
+              borderColor: "#0ea5e9", backgroundColor: "rgba(14,165,233,0.1)",
               tension: 0.4, fill: false, spanGaps: true,
-              pointBackgroundColor: "#3b82f6", pointBorderColor: "#ffffff", pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 8,
+              pointBackgroundColor: "#0ea5e9", pointBorderColor: "#ffffff", pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 8,
             },
           ],
         },
@@ -316,7 +342,7 @@ function displayRollingCostChartEn(data, monthsPeriod = 12) {
             legend: { labels: { color: "#f1f5f9", usePointStyle: true, padding: 20 } },
             tooltip: {
               backgroundColor: "#1e293b", titleColor: "#f1f5f9", bodyColor: "#94a3b8",
-              borderColor: "#3b82f6", borderWidth: 1, cornerRadius: 8, displayColors: true,
+              borderColor: "#0ea5e9", borderWidth: 1, cornerRadius: 8, displayColors: true,
               callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2)} EGP` },
             },
           },
@@ -330,7 +356,6 @@ function displayRollingCostChartEn(data, monthsPeriod = 12) {
     .catch((err) => { logEn("> ❌ Failed to fetch billing CSV: " + err.message); });
 }
 
-// ── Global state ──────────────────────────────────────────────────────────────
 let currentData = [];
 let currentLang = "ar";
 let currentSummary = {};
@@ -347,7 +372,9 @@ function updateSummaryCards(summary) {
   if (summary.breakdown) {
     const bd = summary.breakdown;
     if (el("cost-consumption")) el("cost-consumption").textContent = bd.consumptionCost.toFixed(2);
+    if (el("cost-wastewater"))  el("cost-wastewater").textContent  = bd.wastewaterCost.toFixed(2);
     if (el("cost-service"))     el("cost-service").textContent     = bd.serviceFee.toFixed(2);
+    if (el("cost-vat"))         el("cost-vat").textContent         = bd.vat.toFixed(2);
     if (el("cost-total"))       el("cost-total").textContent       = bd.total.toFixed(2);
   }
   currentSummary = summary;
@@ -365,13 +392,15 @@ function updateProjectionsDisplay() {
   const projTier = currentLang === "ar" ? getCategoryAr(projectedUsage) : getCategoryEn(projectedUsage);
 
   if (el("projected-usage")) el("projected-usage").innerHTML =
-    currentLang === "ar" ? `${projectedUsage.toFixed(0)} <span class="unit-text">كيلووات/ساعة</span>` : `${projectedUsage.toFixed(0)} <span class="unit-text">kWh</span>`;
+    currentLang === "ar" ? `${projectedUsage.toFixed(0)} <span class="unit-text">متر مكعب</span>` : `${projectedUsage.toFixed(0)} <span class="unit-text">m³</span>`;
   if (el("projected-cost")) el("projected-cost").innerHTML =
     currentLang === "ar" ? `${projBd.total.toFixed(0)} <span class="unit-text">جنيه</span>` : `${projBd.total.toFixed(0)} <span class="unit-text">EGP</span>`;
   if (el("projected-tier")) el("projected-tier").textContent = projTier;
 
   if (el("proj-consumption")) el("proj-consumption").textContent = projBd.consumptionCost.toFixed(2);
+  if (el("proj-wastewater"))  el("proj-wastewater").textContent  = projBd.wastewaterCost.toFixed(2);
   if (el("proj-service"))     el("proj-service").textContent     = projBd.serviceFee.toFixed(2);
+  if (el("proj-vat"))         el("proj-vat").textContent         = projBd.vat.toFixed(2);
   if (el("proj-total"))       el("proj-total").textContent       = projBd.total.toFixed(2);
 
   const savings = currentSummary.cost - projBd.total;
@@ -389,7 +418,6 @@ function updateProjectionsDisplay() {
   }
 }
 
-// ── Language switch ───────────────────────────────────────────────────────────
 const langSwitchBtn = document.getElementById("lang-switch");
 const contentEn = document.getElementById("content-en");
 const contentAr = document.getElementById("content-ar");
@@ -411,11 +439,10 @@ langSwitchBtn.addEventListener("click", () => {
   }
 });
 
-// ── Quick actions ─────────────────────────────────────────────────────────────
 function refreshData() {
   showLoading();
-  if (currentLang === "ar") { contentAr.dataset.loaded = "false"; document.getElementById("terminal-ar").innerHTML = "> جاري تحميل بيانات استهلاك الكهرباء..."; loadArabicData(); }
-  else { contentEn.dataset.loaded = "false"; document.getElementById("terminal-en").innerHTML = "> Loading electricity usage data..."; loadEnglishData(); }
+  if (currentLang === "ar") { contentAr.dataset.loaded = "false"; document.getElementById("terminal-ar").innerHTML = "> جاري تحميل بيانات استهلاك المياه..."; loadArabicData(); }
+  else { contentEn.dataset.loaded = "false"; document.getElementById("terminal-en").innerHTML = "> Loading water usage data..."; loadEnglishData(); }
 }
 
 function exportData() {
@@ -424,7 +451,7 @@ function exportData() {
   const blob = new Blob([csv], { type: "text/csv" });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = `electricity-usage-${new Date().toISOString().split("T")[0]}.csv`; a.click();
+  a.href = url; a.download = `water-usage-${new Date().toISOString().split("T")[0]}.csv`; a.click();
   window.URL.revokeObjectURL(url);
 }
 
@@ -440,7 +467,6 @@ document.getElementById("chart-period")?.addEventListener("change", function () 
   if (currentData.length > 0) displayRollingCostChartEn(currentData, parseInt(this.value));
 });
 
-// ── Init ──────────────────────────────────────────────────────────────────────
 window.onload = () => {
   body.className = "lang-ar";
   showLoading();

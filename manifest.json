@@ -1,6 +1,9 @@
 {
-    "theme_color": "#8936FF",
-    "background_color": "#2EC6FE",
+    "name": "مراقب استهلاك المياه / Water Usage Monitor",
+    "short_name": "Water Monitor",
+    "description": "Track your household water consumption, estimate bills, and monitor usage trends",
+    "theme_color": "#0ea5e9",
+    "background_color": "#0f172a",
     "icons": [
         {
             "purpose": "maskable",
@@ -18,8 +21,8 @@
     "orientation": "any",
     "display": "standalone",
     "dir": "auto",
-    "lang": "en-US",
-    "start_url": "https://mahmoudzezozezo.github.io/kw/",
-    "scope": "https://mahmoudzezozezo.github.io/kw/",
-    "id": "https://mahmoudzezozezo.github.io/kw/"
+    "lang": "ar",
+    "start_url": "/",
+    "scope": "/",
+    "id": "/"
 }

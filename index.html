@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#000000"> 
+    <meta name="theme-color" content="#0c1929"> 
     <link rel="manifest" href="manifest.json">
-    <title>ملخص استهلاك الكهرباء / Electricity Usage Summary</title>
+    <title>ملخص استهلاك المياه / Water Usage Summary</title>
     <link rel="stylesheet" href="assets/css/styles.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAELrgAGVucAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIgAAAAAAAAIiIAAAAAAAAiIgAAAAAAABERAAAAAAAAEREAAAAAAAERERAAAAAAEREREQAAAAARERERAAAAABEREREAAAAAEREREQAAAAABEREQAAAAAAAREQAAAAAAAAAAAAAAAAAAAAAAAADwDwAAwAMAAIABAACAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQAAgAEAAMADAADwDwAA" rel="icon" type="image/x-icon">
+    <link href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAALjqAABncQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIgAAAAAAAAIiIAAAAAAAAiIgAAAAAAABERAAAAAAAAEREAAAAAAAERERAAAAAAEREREQAAAAARERERAAAAABEREREAAAAAEREREQAAAAABEREQAAAAAAAREQAAAAAAAAAAAAAAAAAAAAAAAADwDwAAwAMAAIABAACAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQAAgAEAAMADAADwDwAA" rel="icon" type="image/x-icon">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   </head>
   <body>
@@ -18,9 +18,9 @@
       <header class="header">
         <div class="header-content">
           <h1 class="app-title">
-            <i class="fas fa-bolt"></i>
-            <span class="ar-text">مراقب استهلاك الكهرباء</span>
-            <span class="en-text">Electricity Usage Monitor</span>
+            <i class="fas fa-tint"></i>
+            <span class="ar-text">مراقب استهلاك المياه</span>
+            <span class="en-text">Water Usage Monitor</span>
           </h1>
           <button id="lang-switch" class="lang-switch">
             <i class="fas fa-language"></i>
@@ -46,8 +46,8 @@
               <div class="metric">
                 <div class="metric-value" id="total-usage">--</div>
                 <div class="metric-label">
-                  <span class="ar-text">كيلوواط/ساعة</span>
-                  <span class="en-text">kWh</span>
+                  <span class="ar-text">متر مكعب</span>
+                  <span class="en-text">m³</span>
                 </div>
               </div>
               <div class="metric">
@@ -83,17 +83,31 @@
               <div class="breakdown-rows">
                 <div class="breakdown-row">
                   <span class="breakdown-label">
-                    <span class="ar-text">تكلفة الاستهلاك</span>
-                    <span class="en-text">Consumption cost</span>
+                    <span class="ar-text">استهلاك المياه</span>
+                    <span class="en-text">Water consumption</span>
                   </span>
                   <span class="breakdown-value"><span id="cost-consumption">--</span> <span class="ar-text">جنيه</span><span class="en-text">EGP</span></span>
                 </div>
                 <div class="breakdown-row">
                   <span class="breakdown-label">
+                    <span class="ar-text">الصرف الصحي</span>
+                    <span class="en-text">Wastewater</span>
+                  </span>
+                  <span class="breakdown-value"><span id="cost-wastewater">--</span> <span class="ar-text">جنيه</span><span class="en-text">EGP</span></span>
+                </div>
+                <div class="breakdown-row">
+                  <span class="breakdown-label">
                     <span class="ar-text">رسوم الخدمة</span>
-                    <span class="en-text">Service fee</span>
+                    <span class="en-text">Service fees</span>
                   </span>
                   <span class="breakdown-value"><span id="cost-service">--</span> <span class="ar-text">جنيه</span><span class="en-text">EGP</span></span>
+                </div>
+                <div class="breakdown-row">
+                  <span class="breakdown-label">
+                    <span class="ar-text">ضريبة القيمة المضافة</span>
+                    <span class="en-text">VAT</span>
+                  </span>
+                  <span class="breakdown-value"><span id="cost-vat">--</span> <span class="ar-text">جنيه</span><span class="en-text">EGP</span></span>
                 </div>
                 <div class="breakdown-row breakdown-total">
                   <span class="breakdown-label">
@@ -151,7 +165,7 @@
           <div class="card-content">
             <div id="projections-content" class="projections-display">
               <div class="projection-item">
-                <div class="projection-icon usage"><i class="fas fa-bolt"></i></div>
+                <div class="projection-icon usage"><i class="fas fa-tint"></i></div>
                 <div class="projection-info">
                   <h4><span class="ar-text">الاستهلاك المتوقع</span><span class="en-text">Projected Usage</span></h4>
                   <p class="projection-value" id="projected-usage">--</p>
@@ -165,13 +179,23 @@
                   <!-- Projected breakdown -->
                   <div class="proj-breakdown">
                     <span class="proj-breakdown-row">
-                      <span class="ar-text">استهلاك:</span><span class="en-text">Consumption:</span>
+                      <span class="ar-text">مياه:</span><span class="en-text">Water:</span>
                       <strong id="proj-consumption">--</strong>
+                      <span class="ar-text">ج</span><span class="en-text">EGP</span>
+                    </span>
+                    <span class="proj-breakdown-row">
+                      <span class="ar-text">صرف صحي:</span><span class="en-text">Wastewater:</span>
+                      <strong id="proj-wastewater">--</strong>
                       <span class="ar-text">ج</span><span class="en-text">EGP</span>
                     </span>
                     <span class="proj-breakdown-row">
                       <span class="ar-text">خدمة:</span><span class="en-text">Service:</span>
                       <strong id="proj-service">--</strong>
+                      <span class="ar-text">ج</span><span class="en-text">EGP</span>
+                    </span>
+                    <span class="proj-breakdown-row">
+                      <span class="ar-text">ضريبة:</span><span class="en-text">VAT:</span>
+                      <strong id="proj-vat">--</strong>
                       <span class="ar-text">ج</span><span class="en-text">EGP</span>
                     </span>
                     <span class="proj-breakdown-row proj-breakdown-total">
@@ -257,15 +281,15 @@
       <!-- Loading Overlay -->
       <div id="loading-overlay" class="loading-overlay">
         <div class="loading-spinner">
-          <i class="fas fa-bolt fa-spin"></i>
-          <p class="ar-text">جاري تحميل البيانات...</p>
-          <p class="en-text">Loading data...</p>
+          <i class="fas fa-tint fa-spin"></i>
+          <p class="ar-text">جاري تحميل بيانات المياه...</p>
+          <p class="en-text">Loading water data...</p>
         </div>
       </div>
 
       <!-- Footer -->
       <footer class="footer">
-        <p class="ar-text">مراقب استهلاك الكهرباء</p>
+        <p class="ar-text">مراقب استهلاك المياه</p>
       </footer>
     </div>
 
