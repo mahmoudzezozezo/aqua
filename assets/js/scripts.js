@@ -468,6 +468,9 @@ document.getElementById("chart-period")?.addEventListener("change", function () 
 });
 
 window.onload = () => {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js");
+  }
   body.className = "lang-ar";
   showLoading();
   loadArabicData();

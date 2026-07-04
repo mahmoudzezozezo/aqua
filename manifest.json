@@ -7,6 +7,18 @@
     "icons": [
         {
             "purpose": "maskable",
+            "sizes": "192x192",
+            "src": "assets/img/icon512_maskable.png",
+            "type": "image/png"
+        },
+        {
+            "purpose": "any",
+            "sizes": "192x192",
+            "src": "assets/img/icon512_rounded.png",
+            "type": "image/png"
+        },
+        {
+            "purpose": "maskable",
             "sizes": "512x512",
             "src": "assets/img/icon512_maskable.png",
             "type": "image/png"
