@@ -142,6 +142,11 @@
                 <span class="ar-text">تصدير البيانات</span>
                 <span class="en-text">Export Data</span>
               </button>
+              <button class="action-btn" onclick="openAddReadingModal()">
+                <i class="fas fa-plus-circle"></i>
+                <span class="ar-text">إضافة قراءة</span>
+                <span class="en-text">Add Reading</span>
+              </button>
               <div class="action-info">
                 <i class="fas fa-info-circle"></i>
                 <span class="ar-text">تحديث تلقائي للتوقعات</span>
@@ -275,6 +280,56 @@
               <div id="terminal-en" class="data-display"></div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Add Reading Modal -->
+      <div id="add-reading-modal" class="modal-overlay" style="display:none">
+        <div class="modal">
+          <div class="modal-header">
+            <h3><i class="fas fa-tint"></i> <span class="ar-text">إضافة قراءة عداد</span><span class="en-text">Add Meter Reading</span></h3>
+            <button class="modal-close" onclick="closeAddReadingModal()">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <form id="reading-form" onsubmit="submitReading(event)">
+            <div class="modal-content">
+              <div class="form-group">
+                <label for="reading-date">
+                  <span class="ar-text">التاريخ والوقت</span>
+                  <span class="en-text">Date & Time</span>
+                </label>
+                <input type="datetime-local" id="reading-date" name="date_time" class="form-input" required>
+              </div>
+              <div class="form-group">
+                <label for="reading-value">
+                  <span class="ar-text">قراءة العداد (م³)</span>
+                  <span class="en-text">Meter Reading (m³)</span>
+                </label>
+                <input type="number" id="reading-value" name="reading" class="form-input" step="0.001" min="0" required placeholder="e.g. 1234.567">
+              </div>
+              <div class="form-group">
+                <label for="reading-notes">
+                  <span class="ar-text">ملاحظات</span>
+                  <span class="en-text">Notes</span>
+                </label>
+                <input type="text" id="reading-notes" name="notes" class="form-input" placeholder="Optional">
+              </div>
+              <input type="hidden" name="sheet_name" value="Sheet1">
+              <div id="form-status" class="form-status"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn" onclick="closeAddReadingModal()">
+                <span class="ar-text">إلغاء</span>
+                <span class="en-text">Cancel</span>
+              </button>
+              <button type="submit" class="btn btn-primary" id="submit-btn">
+                <i class="fas fa-paper-plane"></i>
+                <span class="ar-text">إرسال</span>
+                <span class="en-text">Submit</span>
+              </button>
+            </div>
+          </form>
         </div>
       </div>
 

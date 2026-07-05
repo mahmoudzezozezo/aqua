@@ -467,6 +467,70 @@ document.getElementById("chart-period")?.addEventListener("change", function () 
   if (currentData.length > 0) displayRollingCostChartEn(currentData, parseInt(this.value));
 });
 
+// --- Google Sheets Form Submission ---
+// Replace with your deployed Google Apps Script Web App URL
+const googleScriptURL = 'YOUR_GOOGLE_APPS_SCRIPT_URL'
+
+function openAddReadingModal() {
+  const modal = document.getElementById('add-reading-modal')
+  modal.style.display = 'flex'
+  modal.style.opacity = '0'
+  setTimeout(() => modal.style.opacity = '1', 10)
+
+  const now = new Date()
+  const offset = now.getTimezoneOffset()
+  const local = new Date(now.getTime() - offset * 60000)
+  document.getElementById('reading-date').value = local.toISOString().slice(0, 16)
+  document.getElementById('form-status').style.display = 'none'
+  document.getElementById('form-status').className = 'form-status'
+}
+
+function closeAddReadingModal() {
+  const modal = document.getElementById('add-reading-modal')
+  modal.style.opacity = '0'
+  setTimeout(() => modal.style.display = 'none', 200)
+}
+
+function submitReading(event) {
+  event.preventDefault()
+  const statusEl = document.getElementById('form-status')
+  const submitBtn = document.getElementById('submit-btn')
+  const formData = new FormData(event.target)
+
+  statusEl.style.display = 'none'
+  statusEl.className = 'form-status'
+  submitBtn.disabled = true
+  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...'
+
+  fetch(googleScriptURL, { method: 'POST', body: formData })
+    .then(res => res.json())
+    .then(data => {
+      if (data.result === 'success') {
+        statusEl.className = 'form-status success'
+        statusEl.textContent = currentLang === 'ar'
+          ? '✅ تم إرسال القراءة بنجاح!'
+          : '✅ Reading submitted successfully!'
+        statusEl.style.display = 'block'
+        event.target.reset()
+        setTimeout(() => closeAddReadingModal(), 1500)
+      } else {
+        throw new Error(data.error || 'Unknown error')
+      }
+    })
+    .catch(err => {
+      statusEl.className = 'form-status error'
+      statusEl.textContent = currentLang === 'ar'
+        ? '❌ فشل الإرسال: ' + err.message
+        : '❌ Submission failed: ' + err.message
+      statusEl.style.display = 'block'
+    })
+    .finally(() => {
+      submitBtn.disabled = false
+      submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> ' +
+        (currentLang === 'ar' ? 'إرسال' : 'Submit')
+    })
+}
+
 window.onload = () => {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js");
