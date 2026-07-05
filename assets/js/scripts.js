@@ -318,6 +318,14 @@ function updateSummaryCards(summary) {
     if (el("cost-service"))     el("cost-service").textContent     = bd.serviceFee.toFixed(2);
     if (el("cost-vat"))         el("cost-vat").textContent         = bd.vat.toFixed(2);
     if (el("cost-total"))       el("cost-total").textContent       = bd.total.toFixed(2);
+
+    const bars = document.querySelectorAll('.breakdown-bar');
+    if (bars.length && bd.total > 0) {
+      const costs = [bd.consumptionCost, bd.wastewaterCost, bd.serviceFee, bd.vat];
+      bars.forEach((bar, i) => {
+        bar.style.width = (costs[i] / bd.total * 100) + '%';
+      });
+    }
   }
   currentSummary = summary;
   updateProjectionsDisplay();
@@ -421,11 +429,15 @@ function openAddReadingModal() {
   document.getElementById('reading-date').value = local.toISOString().slice(0, 16)
   document.getElementById('form-status').style.display = 'none'
   document.getElementById('form-status').className = 'form-status'
+
+  setTimeout(() => document.getElementById('reading-value').focus(), 300)
+  modal.onclick = (e) => { if (e.target === modal) closeAddReadingModal() }
 }
 
 function closeAddReadingModal() {
   const modal = document.getElementById('add-reading-modal')
   modal.style.opacity = '0'
+  modal.onclick = null
   setTimeout(() => modal.style.display = 'none', 200)
 }
 
@@ -471,6 +483,79 @@ async function submitReading(event) {
   }
 }
 
+function openAddBillModal() {
+  const modal = document.getElementById('add-bill-modal')
+  modal.style.display = 'flex'
+  modal.style.opacity = '0'
+  setTimeout(() => modal.style.opacity = '1', 10)
+
+  const now = new Date()
+  document.getElementById('bill-month').value = now.toISOString().slice(0, 7)
+  document.getElementById('bill-form-status').style.display = 'none'
+  document.getElementById('bill-form-status').className = 'form-status'
+
+  setTimeout(() => document.getElementById('bill-amount').focus(), 300)
+  modal.onclick = (e) => { if (e.target === modal) closeAddBillModal() }
+}
+
+function closeAddBillModal() {
+  const modal = document.getElementById('add-bill-modal')
+  modal.style.opacity = '0'
+  modal.onclick = null
+  setTimeout(() => modal.style.display = 'none', 200)
+}
+
+async function submitBill(event) {
+  event.preventDefault()
+  const statusEl = document.getElementById('bill-form-status')
+  const submitBtn = document.getElementById('bill-submit-btn')
+
+  const monthStr = document.getElementById('bill-month').value
+  const amount = parseFloat(document.getElementById('bill-amount').value)
+  const notes = document.getElementById('bill-notes').value
+
+  if (!monthStr || isNaN(amount) || amount <= 0) {
+    statusEl.className = 'form-status error'
+    statusEl.textContent = currentLang === 'ar' ? '❌ يرجى إدخال شهر ومبلغ صحيح' : '❌ Please enter a valid month and amount'
+    statusEl.style.display = 'block'
+    return
+  }
+
+  statusEl.style.display = 'none'
+  statusEl.className = 'form-status'
+  submitBtn.disabled = true
+  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...'
+
+  try {
+    const date = new Date(monthStr + '-01T00:00:00')
+
+    await db.collection('bills').add({
+      date: firebase.firestore.Timestamp.fromDate(date),
+      totalBill: amount,
+      notes: notes || '',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    })
+
+    statusEl.className = 'form-status success'
+    statusEl.textContent = currentLang === 'ar'
+      ? '✅ تم إرسال الفاتورة بنجاح!'
+      : '✅ Bill submitted successfully!'
+    statusEl.style.display = 'block'
+    event.target.reset()
+    setTimeout(() => { closeAddBillModal(); refreshData(); }, 1500)
+  } catch (err) {
+    statusEl.className = 'form-status error'
+    statusEl.textContent = currentLang === 'ar'
+      ? '❌ فشل الإرسال: ' + err.message
+      : '❌ Submission failed: ' + err.message
+    statusEl.style.display = 'block'
+  } finally {
+    submitBtn.disabled = false
+    submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> ' +
+      (currentLang === 'ar' ? 'إرسال' : 'Submit')
+  }
+}
+
 window.onload = () => {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js");
@@ -481,10 +566,18 @@ window.onload = () => {
   contentAr.dataset.loaded = "true";
 
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const readingModal = document.getElementById('add-reading-modal')
+      const billModal = document.getElementById('add-bill-modal')
+      if (readingModal.style.display === 'flex') closeAddReadingModal()
+      else if (billModal.style.display === 'flex') closeAddBillModal()
+    }
     if (e.ctrlKey || e.metaKey) {
       if (e.key === "r") { e.preventDefault(); refreshData(); }
       if (e.key === "e") { e.preventDefault(); exportData(); }
       if (e.key === "l") { e.preventDefault(); langSwitchBtn.click(); }
+      if (e.key === "k") { e.preventDefault(); openAddReadingModal(); }
+      if (e.key === "b") { e.preventDefault(); openAddBillModal(); }
     }
   });
 
