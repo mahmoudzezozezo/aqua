@@ -1,21 +1,3 @@
-const csvUrl =
-  "https://docs.google.com/spreadsheets/d/e/YOUR_WATER_READINGS_SHEET_ID/pub?output=csv";
-
-const billCsvUrl =
-  "https://docs.google.com/spreadsheets/d/e/YOUR_WATER_BILLS_SHEET_ID/pub?output=csv";
-
-function normalizeRow(row) {
-  const normalized = {};
-  for (const key of Object.keys(row)) {
-    normalized[key.trim().toLowerCase()] = row[key];
-  }
-  return normalized;
-}
-
-function isCurlRequest() {
-  return !navigator.userAgent || navigator.userAgent.includes("curl");
-}
-
 function calculateTieredWaterCost(m3) {
   if (m3 <= 0) return 0;
   let cost = 0;
@@ -140,69 +122,33 @@ function displayAveragePerDayEn(data) {
   document.getElementById("terminal-en").innerHTML += tableHtml;
 }
 
-function parseArabicDate(str) {
-  if (!str) return null;
-  str = str.trim();
-
-  const isArabicPM = str.includes("\u0645");
-  const isArabicAM = str.includes("\u0635");
-  const hasArabicAmPm = isArabicPM || isArabicAM;
-
-  str = str.replace(/[\u0635\u0645]/g, "").trim();
-
-  const isLatinPM = /pm/i.test(str);
-  const isLatinAM = /am/i.test(str);
-  str = str.replace(/[aApP][mM]/g, "").trim();
-
-  const timeMatch = str.match(/(\d{1,2}):(\d{2}):(\d{2})/);
-  const dateMatch = str.match(/(\d{4})\/(\d{2})\/(\d{2})/);
-
-  if (!timeMatch || !dateMatch) return null;
-
-  let hh = parseInt(timeMatch[1]);
-  const mm = parseInt(timeMatch[2]);
-  const ss = parseInt(timeMatch[3]);
-  const yyyy = parseInt(dateMatch[1]);
-  const mo = parseInt(dateMatch[2]) - 1;
-  const dd = parseInt(dateMatch[3]);
-
-  if (hasArabicAmPm || isLatinAM || isLatinPM) {
-    if ((isArabicPM || isLatinPM) && hh !== 12) hh += 12;
-    if ((isArabicAM || isLatinAM) && hh === 12) hh = 0;
-  }
-
-  const d = new Date(yyyy, mo, dd, hh, mm, ss);
-  return isNaN(d.getTime()) ? null : d;
+async function fetchReadings() {
+  const snapshot = await db.collection("readings").orderBy("dateTime", "asc").get();
+  const data = [];
+  snapshot.forEach(doc => {
+    const d = doc.data();
+    const ts = d.dateTime?.toDate();
+    if (ts && !isNaN(ts.getTime()) && typeof d.reading === "number") {
+      data.push({ timestamp: ts, reading: d.reading });
+    }
+  });
+  return data;
 }
 
-function parseWaterData(csvText) {
-  const parsed = Papa.parse(csvText, { header: true });
-  return parsed.data
-    .map(normalizeRow)
-    .filter((row) => row["date time"]?.trim() && row["reading"]?.trim())
-    .map((row) => ({
-      timestamp: new Date(row["date time"]) || new Date(row["date time"].trim()),
-      reading: parseInt(row["reading"].trim()),
-    }))
-    .filter((row) => row.timestamp && !isNaN(row.timestamp.getTime()) && !isNaN(row.reading))
-    .sort((a, b) => a.timestamp - b.timestamp);
+async function fetchBills() {
+  const snapshot = await db.collection("bills").orderBy("date", "asc").get();
+  const data = [];
+  snapshot.forEach(doc => {
+    const d = doc.data();
+    const date = d.date?.toDate();
+    if (date && !isNaN(date.getTime()) && typeof d.totalBill === "number") {
+      data.push({ date, cost: d.totalBill, month: date.toISOString().slice(0, 7) });
+    }
+  });
+  return data;
 }
 
-function parseBillData(csvText) {
-  const parsed = Papa.parse(csvText, { header: true });
-  return parsed.data
-    .map(normalizeRow)
-    .filter((row) => row["date"]?.trim() && row["total_bill"]?.trim())
-    .map((row) => ({
-      date: new Date(row["date"].trim()),
-      cost: parseFloat(row["total_bill"].trim()),
-      month: new Date(row["date"].trim()).toISOString().slice(0, 7),
-    }))
-    .filter((row) => !isNaN(row.date.getTime()) && !isNaN(row.cost));
-}
-
-function processWaterData(csvText) {
-  const data = parseWaterData(csvText);
+function processWaterData(data) {
   const now = new Date();
   const last30DaysData = data.filter((row) => row.timestamp >= new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000));
   if (last30DaysData.length < 2) return { data, error: true };
@@ -216,16 +162,30 @@ function processWaterData(csvText) {
   return { data, first, last, totalUsage, daysDiff, avgPerDay, breakdown, error: false };
 }
 
-function loadArabicData() {
-  document.getElementById("terminal-ar").innerHTML = "> جاري تحميل بيانات استهلاك المياه...";
-  fetch(csvUrl)
-    .then((r) => r.text())
-    .then((csvText) => {
-      const result = processWaterData(csvText);
-      if (result.error) { logAr("> ❌ لا توجد بيانات كافية أو بيانات غير صالحة."); hideLoading(); return; }
-      const { data, first, last, totalUsage, avgPerDay, breakdown } = result;
-      const category = getCategoryAr(totalUsage);
-      updateSummaryCards({ totalUsage, avgPerDay, cost: breakdown.total, tier: category, breakdown });
+async function loadData(lang) {
+  const isAr = lang === "ar";
+  const terminal = isAr ? document.getElementById("terminal-ar") : document.getElementById("terminal-en");
+  terminal.innerHTML = isAr ? "> جاري تحميل بيانات استهلاك المياه..." : "> Loading water usage data...";
+  showLoading();
+
+  try {
+    const readings = await fetchReadings();
+    if (readings.length < 2) {
+      (isAr ? logAr : logEn)("> ❌ Not enough data or invalid data.");
+      hideLoading();
+      return;
+    }
+    const result = processWaterData(readings);
+    if (result.error) {
+      (isAr ? logAr : logEn)("> ❌ Not enough data or invalid data.");
+      hideLoading();
+      return;
+    }
+    const { data, first, last, totalUsage, avgPerDay, breakdown } = result;
+    const category = isAr ? getCategoryAr(totalUsage) : getCategoryEn(totalUsage);
+    updateSummaryCards({ totalUsage, avgPerDay, cost: breakdown.total, tier: category, breakdown });
+
+    if (isAr) {
       logAr("> ملخص استهلاك المياه للشهر الماضي");
       logAr("----------------------------------------");
       logAr(`📅 أول قراءة: ${first.timestamp.toLocaleDateString("ar-EG")}`);
@@ -238,26 +198,7 @@ function loadArabicData() {
       logAr(`💰 ضريبة القيمة المضافة: ${breakdown.vat.toFixed(2)} جنيه`);
       logAr(`💵 إجمالي الفاتورة المقدرة: ${breakdown.total.toFixed(2)} جنيه`);
       logAr(`📈 الشريحة: ${category}`);
-      currentData = data;
-      displayAveragePerDayAr(data);
-      displayRollingCostChartEn(data);
-      hideLoading();
-    })
-    .catch((err) => { logAr("> ❌ خطأ: " + err.message); hideLoading(); });
-}
-
-function loadEnglishData() {
-  const terminalEn = document.getElementById("terminal-en");
-  if (!terminalEn) { hideLoading(); return; }
-  terminalEn.innerHTML = "> Loading water usage data...";
-  fetch(csvUrl)
-    .then((r) => r.text())
-    .then((csvText) => {
-      const result = processWaterData(csvText);
-      if (result.error) { logEn("> ❌ Not enough data or invalid data."); hideLoading(); return; }
-      const { data, first, last, totalUsage, avgPerDay, breakdown } = result;
-      const category = getCategoryEn(totalUsage);
-      updateSummaryCards({ totalUsage, avgPerDay, cost: breakdown.total, tier: category, breakdown });
+    } else {
       logEn("> Water Usage Summary for Last Month");
       logEn("----------------------------------------");
       logEn(`📅 First Reading: ${first.timestamp.toLocaleDateString("en-US")}`);
@@ -270,13 +211,18 @@ function loadEnglishData() {
       logEn(`💰 VAT: ${breakdown.vat.toFixed(2)} EGP`);
       logEn(`💵 Estimated total bill: ${breakdown.total.toFixed(2)} EGP`);
       logEn(`📈 Billing tier: ${category}`);
-      currentData = data;
-      displayAveragePerDayEn(data);
-      displayRollingCostChartEn(data);
-      hideLoading();
-    })
-    .catch((err) => { logEn("> ❌ Error: " + err.message); hideLoading(); });
+    }
+    currentData = data;
+    (isAr ? displayAveragePerDayAr : displayAveragePerDayEn)(data);
+    displayRollingCostChartEn(data);
+  } catch (err) {
+    (isAr ? logAr : logEn)("> ❌ " + (isAr ? "خطأ: " : "Error: ") + err.message);
+  }
+  hideLoading();
 }
+
+function loadArabicData() { loadData("ar"); }
+function loadEnglishData() { loadData("en"); }
 
 function displayRollingCostChartEn(data, monthsPeriod = 12) {
   const chartContainer = document.getElementById("shared-chart-container");
@@ -298,62 +244,58 @@ function displayRollingCostChartEn(data, monthsPeriod = 12) {
     }
   }
 
-  fetch(billCsvUrl)
-    .then((r) => r.text())
-    .then((csvText) => {
-      const billingData = parseBillData(csvText);
-      const billingByMonth = {};
-      billingData.forEach((e) => { billingByMonth[e.month] = e.cost; });
+  fetchBills().then(billingData => {
+    const billingByMonth = {};
+    billingData.forEach((e) => { billingByMonth[e.month] = e.cost; });
 
-      const months = [...new Set(rollingCosts.map((rc) => rc.month))];
-      const filteredMonths = months.slice(-monthsPeriod);
+    const months = [...new Set(rollingCosts.map((rc) => rc.month))];
+    const filteredMonths = months.slice(-monthsPeriod);
 
-      const estimatedCostsByMonth = {};
-      months.forEach((month) => {
-        const costsInMonth = rollingCosts.filter((rc) => rc.month === month);
-        estimatedCostsByMonth[month] = costsInMonth.length ? costsInMonth[costsInMonth.length - 1].cost : null;
-      });
+    const estimatedCostsByMonth = {};
+    months.forEach((month) => {
+      const costsInMonth = rollingCosts.filter((rc) => rc.month === month);
+      estimatedCostsByMonth[month] = costsInMonth.length ? costsInMonth[costsInMonth.length - 1].cost : null;
+    });
 
-      new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: filteredMonths,
-          datasets: [
-            {
-              label: "Estimated Bill",
-              data: filteredMonths.map((m) => estimatedCostsByMonth[m] || null),
-              borderColor: "#10b981", backgroundColor: "rgba(16,185,129,0.1)",
-              tension: 0.4, fill: true,
-              pointBackgroundColor: "#10b981", pointBorderColor: "#ffffff", pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 8,
-            },
-            {
-              label: "Actual Bill",
-              data: filteredMonths.map((m) => billingByMonth[m] || null),
-              borderColor: "#0ea5e9", backgroundColor: "rgba(14,165,233,0.1)",
-              tension: 0.4, fill: false, spanGaps: true,
-              pointBackgroundColor: "#0ea5e9", pointBorderColor: "#ffffff", pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 8,
-            },
-          ],
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          interaction: { mode: "index", intersect: false },
-          plugins: {
-            legend: { labels: { color: "#f1f5f9", usePointStyle: true, padding: 20 } },
-            tooltip: {
-              backgroundColor: "#1e293b", titleColor: "#f1f5f9", bodyColor: "#94a3b8",
-              borderColor: "#0ea5e9", borderWidth: 1, cornerRadius: 8, displayColors: true,
-              callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2)} EGP` },
-            },
+    new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: filteredMonths,
+        datasets: [
+          {
+            label: "Estimated Bill",
+            data: filteredMonths.map((m) => estimatedCostsByMonth[m] || null),
+            borderColor: "#10b981", backgroundColor: "rgba(16,185,129,0.1)",
+            tension: 0.4, fill: true,
+            pointBackgroundColor: "#10b981", pointBorderColor: "#ffffff", pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 8,
           },
-          scales: {
-            x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "#334155", drawBorder: false }, border: { display: false } },
-            y: { beginAtZero: true, ticks: { color: "#94a3b8", callback: (v) => v.toFixed(0) + " EGP" }, grid: { color: "#334155", drawBorder: false }, border: { display: false } },
+          {
+            label: "Actual Bill",
+            data: filteredMonths.map((m) => billingByMonth[m] || null),
+            borderColor: "#0ea5e9", backgroundColor: "rgba(14,165,233,0.1)",
+            tension: 0.4, fill: false, spanGaps: true,
+            pointBackgroundColor: "#0ea5e9", pointBorderColor: "#ffffff", pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 8,
+          },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { labels: { color: "#f1f5f9", usePointStyle: true, padding: 20 } },
+          tooltip: {
+            backgroundColor: "#1e293b", titleColor: "#f1f5f9", bodyColor: "#94a3b8",
+            borderColor: "#0ea5e9", borderWidth: 1, cornerRadius: 8, displayColors: true,
+            callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2)} EGP` },
           },
         },
-      });
-    })
-    .catch((err) => { logEn("> ❌ Failed to fetch billing CSV: " + err.message); });
+        scales: {
+          x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "#334155", drawBorder: false }, border: { display: false } },
+          y: { beginAtZero: true, ticks: { color: "#94a3b8", callback: (v) => v.toFixed(0) + " EGP" }, grid: { color: "#334155", drawBorder: false }, border: { display: false } },
+        },
+      },
+    });
+  }).catch((err) => { logEn("> ❌ Failed to fetch billing data: " + err.message); });
 }
 
 let currentData = [];
@@ -467,10 +409,6 @@ document.getElementById("chart-period")?.addEventListener("change", function () 
   if (currentData.length > 0) displayRollingCostChartEn(currentData, parseInt(this.value));
 });
 
-// --- Google Sheets Form Submission ---
-// Replace with your deployed Google Apps Script Web App URL
-const googleScriptURL = 'YOUR_GOOGLE_APPS_SCRIPT_URL'
-
 function openAddReadingModal() {
   const modal = document.getElementById('add-reading-modal')
   modal.style.display = 'flex'
@@ -491,44 +429,46 @@ function closeAddReadingModal() {
   setTimeout(() => modal.style.display = 'none', 200)
 }
 
-function submitReading(event) {
+async function submitReading(event) {
   event.preventDefault()
   const statusEl = document.getElementById('form-status')
   const submitBtn = document.getElementById('submit-btn')
-  const formData = new FormData(event.target)
+
+  const dateTimeStr = document.getElementById('reading-date').value
+  const reading = parseFloat(document.getElementById('reading-value').value)
+  const notes = document.getElementById('reading-notes').value
 
   statusEl.style.display = 'none'
   statusEl.className = 'form-status'
   submitBtn.disabled = true
   submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...'
 
-  fetch(googleScriptURL, { method: 'POST', body: formData })
-    .then(res => res.json())
-    .then(data => {
-      if (data.result === 'success') {
-        statusEl.className = 'form-status success'
-        statusEl.textContent = currentLang === 'ar'
-          ? '✅ تم إرسال القراءة بنجاح!'
-          : '✅ Reading submitted successfully!'
-        statusEl.style.display = 'block'
-        event.target.reset()
-        setTimeout(() => closeAddReadingModal(), 1500)
-      } else {
-        throw new Error(data.error || 'Unknown error')
-      }
+  try {
+    await db.collection('readings').add({
+      dateTime: firebase.firestore.Timestamp.fromDate(new Date(dateTimeStr)),
+      reading,
+      notes: notes || '',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     })
-    .catch(err => {
-      statusEl.className = 'form-status error'
-      statusEl.textContent = currentLang === 'ar'
-        ? '❌ فشل الإرسال: ' + err.message
-        : '❌ Submission failed: ' + err.message
-      statusEl.style.display = 'block'
-    })
-    .finally(() => {
-      submitBtn.disabled = false
-      submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> ' +
-        (currentLang === 'ar' ? 'إرسال' : 'Submit')
-    })
+
+    statusEl.className = 'form-status success'
+    statusEl.textContent = currentLang === 'ar'
+      ? '✅ تم إرسال القراءة بنجاح!'
+      : '✅ Reading submitted successfully!'
+    statusEl.style.display = 'block'
+    event.target.reset()
+    setTimeout(() => { closeAddReadingModal(); refreshData(); }, 1500)
+  } catch (err) {
+    statusEl.className = 'form-status error'
+    statusEl.textContent = currentLang === 'ar'
+      ? '❌ فشل الإرسال: ' + err.message
+      : '❌ Submission failed: ' + err.message
+    statusEl.style.display = 'block'
+  } finally {
+    submitBtn.disabled = false
+    submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> ' +
+      (currentLang === 'ar' ? 'إرسال' : 'Submit')
+  }
 }
 
 window.onload = () => {
