@@ -458,6 +458,25 @@ body {
   color: white;
 }
 
+.action-btn-manage {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.action-btn-manage i {
+  color: var(--accent-color);
+}
+
+.action-btn-manage:hover {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: white;
+}
+
+.action-btn-manage:hover i {
+  color: white;
+}
+
 /* Projections Section */
 .projections-section {
   margin-bottom: 2rem;
