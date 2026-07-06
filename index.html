@@ -157,6 +157,16 @@
                 <span class="ar-text">تصدير البيانات</span>
                 <span class="en-text">Export Data</span>
               </button>
+              <button class="action-btn action-btn-add" onclick="openAddReadingModal()">
+                <i class="fas fa-plus-circle"></i>
+                <span class="ar-text">إضافة قراءة</span>
+                <span class="en-text">Add Reading</span>
+              </button>
+              <button class="action-btn" onclick="openAddBillModal()" style="border-color:var(--primary-color);background:rgba(14,165,233,0.06)">
+                <i class="fas fa-receipt"></i>
+                <span class="ar-text">إضافة فاتورة</span>
+                <span class="en-text">Add Bill</span>
+              </button>
               <button class="action-btn" onclick="openManageData()" style="border-color:var(--accent-color);color:var(--accent-color)">
                 <i class="fas fa-database"></i>
                 <span class="ar-text">إدارة البيانات</span>
@@ -257,6 +267,11 @@
                 <option value="12" selected>12 months</option>
                 <option value="24">24 months</option>
               </select>
+              <button class="btn-header-add" onclick="openAddBillModal()" title="Add Bill" style="padding:0.5rem 0.75rem;font-size:0.8rem">
+                <i class="fas fa-receipt"></i>
+                <span class="ar-text">فاتورة</span>
+                <span class="en-text">Bill</span>
+              </button>
             </div>
           </div>
           <div class="card-content">
@@ -287,6 +302,13 @@
             </div>
             <div id="content-en" class="lang-content">
               <div id="terminal-en" class="data-display"></div>
+            </div>
+            <div class="data-footer">
+              <button class="btn-add-inline" onclick="openAddReadingModal()">
+                <i class="fas fa-plus-circle"></i>
+                <span class="ar-text">إضافة قراءة جديدة</span>
+                <span class="en-text">Add New Reading</span>
+              </button>
             </div>
           </div>
         </div>
