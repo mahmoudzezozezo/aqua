@@ -418,7 +418,7 @@ document.getElementById("chart-period")?.addEventListener("change", function () 
 });
 
 // ── Password Protection ──────────────────────────────────────────────────────
-const MANAGER_PASSWORD = "1234"; // Change this to your password
+const MANAGER_PASSWORD = "1122";
 
 function showModal(id) {
   const el = document.getElementById(id);
