@@ -1,5 +1,5 @@
 const CACHE_NAME = "water-monitor-v2";
-const ASSETS = [
+const LOCAL_ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
@@ -9,6 +9,9 @@ const ASSETS = [
   "./assets/js/firebase-config.js",
   "./assets/img/icon512_maskable.png",
   "./assets/img/icon512_rounded.png",
+];
+
+const CDN_ASSETS = [
   "https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js",
   "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js",
   "https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js",
@@ -18,7 +21,14 @@ const ASSETS = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then(async (cache) => {
+      for (const url of LOCAL_ASSETS) {
+        try { await cache.add(url); } catch {}
+      }
+      for (const url of CDN_ASSETS) {
+        try { await cache.add(url); } catch {}
+      }
+    })
   );
   self.skipWaiting();
 });
