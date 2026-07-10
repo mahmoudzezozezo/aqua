@@ -7,6 +7,8 @@ const LOCAL_ASSETS = [
   "./assets/css/styles.css",
   "./assets/js/scripts.js",
   "./assets/js/firebase-config.js",
+  "./assets/img/icon192_maskable.png",
+  "./assets/img/icon192_rounded.png",
   "./assets/img/icon512_maskable.png",
   "./assets/img/icon512_rounded.png",
 ];
